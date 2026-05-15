@@ -1,4 +1,5 @@
 ---
+name: review-markup
 description: HTML のセマンティクスとアクセシビリティをレビューする
 ---
 
@@ -96,6 +97,7 @@ WebFetch(domain:w3c.github.io)
 - ARIA 属性・ロールの使用箇所
 - インタラクティブ要素（フォーム、ボタン、リンクなど）
 - 見出し構造・ランドマーク構造
+- **コンポーネントライブラリ（React/Vue/Svelte 等）を使用している場合**: コンポーネントの props やカスタムデータが DOM 要素に直接渡されていないかを確認する（後述 4-5 で評価）
 
 ### ステップ 3: 仕様の参照（必要に応じてフェッチ）
 
@@ -239,6 +241,82 @@ WebFetch(domain:w3c.github.io)
     ```
 
     空の要素は DOM を増やし、スクリーンリーダーが誤って読み上げるリスクも生じる。擬似要素はアクセシビリティツリーに現れないため、装飾専用の要素を DOM に置く必要がなくなる。
+
+---
+
+#### 4-5. コンポーネントライブラリ固有のチェック（対象コードがコンポーネントベースのフレームワークを使用している場合のみ）
+
+**HTML 仕様にない属性（カスタム props・カスタムディレクティブ等）の DOM 要素への受け渡し**
+
+React, Vue, Svelte 等のコンポーネントライブラリでは、コンポーネントが受け取ったデータをそのまま DOM 要素に渡してしまうと、HTML 仕様に存在しない属性が実際の DOM に出力される。これにより以下の問題が生じる:
+
+1. ブラウザのコンソールに警告が出力される（React: `Warning: Unknown prop 'xxx' on <div> tag.`）
+2. 意図しない属性が HTML に出力され、情報漏洩やマークアップの汚染につながる
+3. HTML バリデーションに失敗する
+
+**チェックすべき代表的なパターン:**
+
+*React/JSX:*
+```jsx
+// 危険: props にカスタム属性が含まれていると DOM に渡ってしまう
+function Button({ children, ...props }) {
+  return <button {...props}>{children}</button>;
+}
+
+// 危険: isActive は HTML 仕様にない属性
+function Item({ isActive, label }) {
+  return <li isActive={isActive}>{label}</li>;
+}
+```
+
+*Vue:*
+```vue
+<!-- 危険: $attrs が自動的にルート要素に継承され、カスタム props が DOM に出力される -->
+<template>
+  <div>...</div>
+</template>
+<script>
+export default { inheritAttrs: true /* デフォルト */ }
+</script>
+```
+
+*Svelte:*
+```svelte
+<!-- 危険: $$restProps にカスタムデータが含まれたまま DOM に渡る -->
+<div {...$$restProps}>...</div>
+```
+
+**問題のある属性かどうかの判断基準:**
+
+- WHATWG HTML Living Standard に定義されていない属性名
+- `is` / `has` / `should` / `can` / `show` などで始まるブール的なフラグ名
+- camelCase の属性名（HTML 仕様の属性は基本的に小文字。ただし React の JSX マッピング属性は除く）
+- コンポーネント内部ロジックのためのデータ（`selectedIndex`, `loadingState` 等）
+
+**問題なしと判断すべき属性:**
+
+- `data-*` 属性（HTML Living Standard § 3.2.6.6 で定義されたカスタムデータ属性）
+- `aria-*` 属性（WAI-ARIA 仕様で定義）
+- React の JSX 属性マッピング: `className` → `class`, `htmlFor` → `for`, `tabIndex` → `tabindex` 等
+- 標準 DOM イベントハンドラー: `onClick`, `onChange`, `onFocus` 等（React 固有の書き方だが標準イベントにマッピングされる）
+
+**修正の方向性（参考として示す）:**
+
+```jsx
+// React: カスタム props を分離して DOM に渡さない
+function Button({ children, isLoading, variant, ...htmlProps }) {
+  return <button {...htmlProps}>{children}</button>;
+}
+```
+
+```vue
+<!-- Vue: inheritAttrs: false で自動継承を無効化し、必要な属性のみ明示的に渡す -->
+<template>
+  <div v-bind="filteredAttrs">...</div>
+</template>
+```
+
+> **Claude へ**: カスタム props の混入は、コードを静的に見ただけでは判断しきれない場合がある。`{...props}` や `{...$$restProps}` のスプレッドがあれば「混入リスクがある」として指摘し、props の内容次第で問題になりうることを説明すること。明らかにカスタム props が DOM 要素に直接渡されている場合は「重要度: 高」として指摘する。
 
 ---
 

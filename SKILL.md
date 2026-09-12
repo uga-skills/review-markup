@@ -1,63 +1,61 @@
 ---
 name: review-markup
-description: HTML のセマンティクスとアクセシビリティをレビューする
+description: HTML のセマンティクスとアクセシビリティを、WHATWG HTML Living Standard・WAI-ARIA・ARIA in HTML・APG Patterns に照らしてレビューする。ユーザーが「このHTMLレビューして」「マークアップ直して」「アクセシビリティ的に問題ないか見て」など、HTML構造やa11yの妥当性を確認したい場合は必ずこのスキルを使う。
 ---
 
 # Skill: review-markup
 
-マークアップのコードレビューを行うスキルです。
-WHATWG HTML Living Standard、WAI-ARIA、ARIA in HTML、APG Patterns などの仕様に照らし合わせ、セマンティクスとアクセシビリティの観点でレビューします。
-
-あなたの役割はHTMLのセマンティクス、アクセシビリティ（マシンリーダブル）のスペシャリストです。そのつもりでレビューしてください。
-
-## トリガー
-
-ユーザーが以下を求めるとき:
-
-- `/review-markup` を実行したとき
-- マークアップ（HTML）のレビューを依頼されたとき
-- HTML コードのセマンティクスやアクセシビリティを確認してほしいとき
+HTML のセマンティクスとアクセシビリティのスペシャリストとして、マークアップのコードレビューを行う。
 
 ## 実行手順
 
-### ステップ 0: 必要な権限の確認
+### ステップ 0: 仕様ソースの準備（ローカル clone を優先）
 
-このスキルは仕様書のフェッチに以下のドメインへのアクセスを必要とします。
+このスキルは仕様の参照を、原則としてローカルにcloneした一次情報源への `grep`/`Read` で行う。フェッチは、cloneに含まれない情報（策定中のissue、最新のerrata等）が必要な場合のみ補助的に使う。
 
-**必要な WebFetch 権限:**
+このスキル自身のディレクトリ（`SKILL.md` と同じ場所）直下に `sources/` を作り、以下をcloneする（初回のみ。合計で概ね236MB程度になる。以降は `pull` で更新する）。
 
+`wcag`・`aria-practices` は必要なディレクトリ（`understanding/`、`content/patterns/`）のみを `git sparse-checkout`（`--filter=blob:none` の部分clone）で取得する。これにより `wcag` は約50MB→約11MB、`aria-practices` は約14MB→約9.2MBに削減できる（実測比較済み）。`mdn-content` は `mdn/content` リポジトリ自体が元々英語版（`files/en-us/**`）のみで多言語版は別リポジトリ（`mdn/translated-content`）のため、sparse化しても削減効果がなく対象外とする。`aria`・`html-aria` は単一HTMLファイルで十分小さいため通常clone。
+
+```bash
+cd "$(dirname "<このSKILL.mdの絶対パス>")"
+mkdir -p sources sources/whatwg-html
+for repo in \
+  "aria|https://github.com/w3c/aria.git|" \
+  "html-aria|https://github.com/w3c/html-aria.git|" \
+  "wcag|https://github.com/w3c/wcag.git|understanding" \
+  "aria-practices|https://github.com/w3c/aria-practices.git|content/patterns" \
+  "mdn-content|https://github.com/mdn/content.git|"; do
+  name="${repo%%|*}"; rest="${repo#*|}"; url="${rest%%|*}"; sparse="${rest#*|}"
+  if [ -d "sources/$name/.git" ]; then
+    git -C "sources/$name" pull --ff-only
+  elif [ -n "$sparse" ]; then
+    git clone --depth 1 --filter=blob:none --sparse "$url" "sources/$name"
+    git -C "sources/$name" sparse-checkout set "$sparse"
+  else
+    git clone --depth 1 "$url" "sources/$name"
+  fi
+done
+# whatwg-html は git 管理下にないため pull ではなく、未取得の場合のみ curl で取得する
+[ -f sources/whatwg-html/source ] || curl -sL https://raw.githubusercontent.com/whatwg/html/refs/heads/main/source -o sources/whatwg-html/source
 ```
-WebFetch(domain:www.w3.org)
-WebFetch(domain:html.spec.whatwg.org)
-WebFetch(domain:wicg.io)
-WebFetch(domain:bugs.webkit.org)
-WebFetch(domain:w3c.github.io)
-```
 
-プロジェクトの `.claude/settings.json` を Read ツールで読み込み、上記のすべてのドメインが `permissions.allow` に含まれているか確認すること。
+`sources/` は `.gitignore` 済み（このリポジトリ固有の作業コピーであり、コミット対象ではない）。
 
-- **すべて含まれている場合** → ステップ 1 へ進む
-- **不足しているものがある場合** → 以下のメッセージをユーザーに伝え、レビューを一時停止する:
+- 各ソースの中身:
+    - `sources/aria/index.html` — WAI-ARIA
+    - `sources/html-aria/index.html` — ARIA in HTML
+    - `sources/wcag/understanding/**` — WCAG 達成基準の解説（Understanding Docs）
+    - `sources/aria-practices/content/patterns/**` — APG Patterns
+    - `sources/mdn-content/files/en-us/**` — MDN Web Docs（英語原文、翻訳版ではない）
+    - `sources/whatwg-html/source` — WHATWG HTML Living Standard（ビルド前の単一ソースファイル。約8MB。`curl` で直接取得するため `.git` はない）
+- W3C系4リポジトリとMDNはReSpec/Eleventy等のビルドを経る前のソースだが、規範文・解説文はファイル中にそのまま記述されているため、ビルドせず `grep`/`Read` で読める。
+- `whatwg-html/source` も同様に規範文はプレーンに読めるが、これは本家が「HTMLではなく独自の中間言語」と明言している前処理前ファイルであり、`w-dev`/`w-nodev`（Developer Edition用の分岐）等の条件付き属性が混在する点、および `html.spec.whatwg.org` で使われる最終的なアンカーID（例: `#the-p-element`）はビルド時に自動生成されるため本ファイル中には存在しない点に注意する。内容の検索・引用にはgrepを使い、レポートに書くURL（アンカー付き）は該当箇所を都度フェッチして確認する（ステップ3参照）。
 
-    > このスキルを使うには、プロジェクトの `.claude/settings.json` に以下の権限を追加してください:
-    >
-    > ```json
-    > {
-    >   "permissions": {
-    >     "allow": [
-    >       "WebFetch(domain:www.w3.org)",
-    >       "WebFetch(domain:html.spec.whatwg.org)",
-    >       "WebFetch(domain:wicg.io)",
-    >       "WebFetch(domain:bugs.webkit.org)",
-    >       "WebFetch(domain:w3c.github.io)"
-    >     ]
-    >   }
-    > }
-    > ```
-    >
-    > 追加後に再度お試しください。
-
-> **Claude へ**: `.claude/settings.json` が存在しない場合も「不足」と判定し、上記メッセージを案内すること。ファイルがあっても `permissions.allow` が未設定の場合も同様。
+> **Claude へ**: `sources/` が存在しない、または各サブディレクトリに `.git` がない場合はcloneから開始すること。既に存在する場合も、レビュー開始前に一度 `pull --ff-only` して最新化すること（`whatwg-html/source` はファイルが存在する限り再取得不要。存在しない場合のみ `curl` で取得する）。
+>
+> - **既存の `sources/` の `pull` が失敗した場合**（ネットワーク不通など）: 失敗した旨をユーザーに伝えた上で、ローカルの内容のまま続行してよい。
+> - **初回clone自体が失敗した場合**（`sources/` がまだ存在せず参照元が手元にない場合）: ローカルには何も参照できるものがないため、失敗した旨をユーザーに伝えた上で、以降のステップで `grep`/`Read` の代わりに各仕様の公式ページを `WebFetch` で直接読んで続行すること（フォールバックURLはステップ3の各仕様の項に記載）。
 
 ---
 
@@ -81,9 +79,9 @@ WebFetch(domain:w3c.github.io)
 - 記録されていない場合 → **レビュー開始前に必ずユーザーに以下を尋ねる**:
 
     > WCAG の達成基準として目標とするレベル（A / AA / AAA）はありますか？
-    > 分からない場合はレベル A を基準としてレビューします。
+    > 分からない場合はレベル AA を基準としてレビューします（JIS X 8341-3:2016 に基づく総務省「みんなの公共サイト運用ガイドライン」が公的機関に適合レベル AA を求めており、民間サイトでも AA を目標とするのが実務上一般的であるため）。
     - 回答があればメモリに保存する
-    - 「分からない」または無回答の場合は **レベル A を基準** とし、その旨をユーザーに伝える。メモリには「未指定のためレベル A を適用」と記録する
+    - 「分からない」または無回答の場合は **レベル AA を基準** とし、その旨をユーザーに伝える。メモリには「未指定のためレベル AA を適用」と記録する
 
 > **Claude へ**: WCAG の達成基準レベルはレビューの評価軸に直接影響する。例えば WCAG 2.4.9 Link Purpose (Link Only) はレベル AAA のため、目標がAA以下であれば指摘しない。各指摘に WCAG 達成基準を明記し、目標レベルを超える基準への言及は「参考情報」として区別すること。
 
@@ -97,39 +95,56 @@ WebFetch(domain:w3c.github.io)
 - ARIA 属性・ロールの使用箇所
 - インタラクティブ要素（フォーム、ボタン、リンクなど）
 - 見出し構造・ランドマーク構造
-- **コンポーネントライブラリ（React/Vue/Svelte 等）を使用している場合**: コンポーネントの props やカスタムデータが DOM 要素に直接渡されていないかを確認する（後述 4-5 で評価）
+- **コンポーネントライブラリ（React/Vue/Svelte 等）を使用している場合**: コンポーネントの props やカスタムデータが DOM 要素に直接渡されていないかを確認する（後述 4-4 で評価）
 
-### ステップ 3: 仕様の参照（必要に応じてフェッチ）
+### ステップ 3: 仕様の参照（grep を優先し、必要な場合のみフェッチ）
 
-レビュー対象に応じて、以下の URL から仕様を取得して照合すること。
-**毎回すべてをフェッチする必要はない。**レビュー対象の要素・パターンに関係する仕様のみフェッチする。
+レビュー対象に応じて、関係する仕様のみ確認する。**毎回すべてを確認する必要はない。**
+
+**優先順位:** ステップ0の方針（`sources/` の grep/Read を優先し、フェッチは補助）に従う。
 
 #### WHATWG HTML Living Standard
 
 - 要素定義の確認（コンテンツモデル、許可される属性、親要素の制約など）
-    - `p` 要素: https://html.spec.whatwg.org/multipage/grouping-content.html#the-p-element
-    - `div` 要素: https://html.spec.whatwg.org/multipage/grouping-content.html#the-div-element
-    - `section`/`article`/`aside`/`nav`: https://html.spec.whatwg.org/multipage/sections.html
-    - `button`/`input`/`select`/`textarea`: https://html.spec.whatwg.org/multipage/form-elements.html
-    - `a` 要素: https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-a-element
-    - コンテンツカテゴリ全般: https://html.spec.whatwg.org/multipage/dom.html#content-categories
-    - インタラクティブコンテンツ: https://html.spec.whatwg.org/multipage/dom.html#interactive-content-2
+    - `grep` 対象: `sources/whatwg-html/source`（例: `<dfn element><code>p</code></dfn>` で `p` 要素の定義セクションを検索）
+    - レポートに引用URLを書く場合のみ、該当する `https://html.spec.whatwg.org/multipage/` 配下のページをフェッチしてアンカーIDを確認する（`source` 内には最終的なアンカーIDが存在しないため）。以下はよく参照する例であり網羅ではない。リストにない要素・トピックは `https://html.spec.whatwg.org/multipage/indices.html`（要素索引）等から該当ページを特定してフェッチすること:
+        - （例）`p` 要素: https://html.spec.whatwg.org/multipage/grouping-content.html#the-p-element
+        - （例）`div` 要素: https://html.spec.whatwg.org/multipage/grouping-content.html#the-div-element
+        - （例）`section`/`article`/`aside`/`nav`: https://html.spec.whatwg.org/multipage/sections.html
+        - （例）`button`/`input`/`select`/`textarea`: https://html.spec.whatwg.org/multipage/form-elements.html
+        - （例）`a` 要素: https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-a-element
+        - （例）コンテンツカテゴリ全般: https://html.spec.whatwg.org/multipage/dom.html#content-categories
+        - （例）インタラクティブコンテンツ: https://html.spec.whatwg.org/multipage/dom.html#interactive-content-2
 
 #### W3C WAI-ARIA 1.2
 
 - ARIA ロール・属性の使用が適切かどうか
-    - ロール定義: https://www.w3.org/TR/wai-aria-1.2/#role_definitions
-    - ステート・プロパティ: https://www.w3.org/TR/wai-aria-1.2/#state_prop_def
+    - `grep` 対象: `sources/aria/index.html`（ロール定義は `id="role_definitions"` 周辺、ステート・プロパティ定義は `id="state_prop_def"` 周辺）
+    - フォールバック: https://www.w3.org/TR/wai-aria-1.2/#role_definitions 、 https://www.w3.org/TR/wai-aria-1.2/#state_prop_def
 
 #### ARIA in HTML (W3C)
 
 - HTML 要素に対する暗黙ロール・許可される ARIA ロールの確認
-    - https://www.w3.org/TR/html-aria/
+    - `grep` 対象: `sources/html-aria/index.html`
+    - フォールバック: https://www.w3.org/TR/html-aria/
 
 #### APG Patterns (ARIA Authoring Practices Guide)
 
 - UI パターン（モーダル、タブ、メニューなど）のキーボード操作・ARIA 使用の確認
-    - https://www.w3.org/WAI/ARIA/apg/patterns/
+    - `grep` 対象: `sources/aria-practices/content/patterns/<pattern-name>/<pattern-name>-pattern.html`
+    - フォールバック: https://www.w3.org/WAI/ARIA/apg/patterns/
+
+#### WCAG 達成基準（Understanding Docs）
+
+- 個別の達成基準の意図・適合方法・失敗例の確認
+    - `grep` 対象: `sources/wcag/understanding/<version>/<criterion-slug>.html`（例: `sources/wcag/understanding/22/target-size-minimum.html`）
+    - フォールバック: https://www.w3.org/WAI/WCAG22/Understanding/
+
+#### MDN Web Docs（英語原文。参考情報として扱う）
+
+- ブラウザの実装状況・具体的な使用例の補助的な確認（一次仕様ではないため根拠としては弱い）
+    - `grep` 対象: `sources/mdn-content/files/en-us/**/index.md`
+    - フォールバック: https://developer.mozilla.org/en-US/docs/Web （英語版のみ。翻訳版は参照しない）
 
 ### ステップ 4: 評価の実施
 
@@ -149,24 +164,31 @@ WebFetch(domain:w3c.github.io)
 - 意味的に適切な要素が選ばれているか
 - `div` や `span` が使われている箇所で、より意味のある要素が使えないか検討する
 
-**`p` 要素 vs `div` 要素の判断基準（重要）**
+**`p` 要素 vs `div` 要素の判断基準**
 
 `p` 要素はフレージングコンテンツのコンテナとして定義されている（WHATWG HTML Living Standard § 4.4.1）。
-コンテンツモデルは "Phrasing content" であり、子要素にフレージングコンテンツのみを含む場合、**レイアウト目的であっても `p` 要素を使う妥当性がある**。
+コンテンツモデルは "Phrasing content" であり、使用可能な文脈は「フローコンテンツが期待される場所」である。
+子要素にフレージングコンテンツのみを含む場合、**レイアウト目的であっても `p` 要素を使う妥当性がある**。
 
-`p` 要素を推奨できる条件:
+`div` を `p` への置き換え候補として指摘する条件:
 
-1. 子要素がすべてフレージングコンテンツである
-2. 以下のいずれかを満たす親コンテキストである:
-    - フローコンテンツを受け入れる要素（`div`, `section`, `article`, `main`, `aside`, `header`, `footer` など）
-    - `td`, `li`, `dd`, `th`, `figcaption`, `blockquote`, `details > summary` など、フローコンテンツを受け入れるが自身はブロックレベルのセマンティクスを持つ要素
+1. 対象が `div` 要素で、子要素がすべてフレージングコンテンツである
+2. その `div` から祖先方向に `li`, `dd`, `td`, `th`, `dt`, `summary`, `figcaption`, `caption`, `blockquote` など、**すでに意味を持つ要素**が挟まっていない（`header`, `main`, `nav`, `aside`, `section`, `article`, `body` などランドマーク的要素の直下で `div` が素通しの役割しか果たしていない）
 
-`div` を推奨すべき条件（`p` を使うべきでない場合）:
+上記1・2を両方満たす場合のみ `p` への置き換えを提案する。**すでに意味を持つ要素が祖先にある場合、あるいはそもそも `div` を挟まず意味を持つ要素に直接フレージングコンテンツが置かれている場合は、それ自体で十分であり指摘不要**（`li`, `td` 等はそれ自身が「これはリスト項目/セルである」という意味をすでに持つため、内側の `div` を `p` に変えても意味的な向上がない）。
 
-- 子要素にブロックレベル要素（`div`, `p`, `ul`, `table`, `figure` 等）が含まれる
-- 子要素にフローコンテンツ（かつフレージングコンテンツでない要素）が含まれる
+例:
 
-> **Claude へ**: `div` を安易に推奨しないこと。フレージングコンテンツのみを包む箇所で `p` を使っている実装は、たとえレイアウト目的であっても仕様に適合している。むしろ `p` のほうがセマンティクス上の意味を持つため積極的に採用を認めること。
+- `body > header > div > img` → `p` へ置き換え推奨（`header` 直下で `div` が素通し）
+- `body > header > ul > li > text` → 指摘不要（`li` がすでに意味を持つ）
+- `li > div > small` → 指摘不要（`li` がすでに意味を持つため、内側の `div` を `p` にする必要はない）
+
+`div` を維持すべき条件:
+
+- 子要素にフレージングコンテンツではない要素（`div`, `p`, `ul`, `table`, `figure` 等）が含まれる（`p` の content model 違反）
+- 祖先方向にすでに意味を持つ要素があり、`div` はその内側でスタイリングフック等の目的で使われている
+
+> **Claude へ**: `p` への一律な置き換えを提案しないこと。断定してよいのは上記1・2を両方満たすときに限る。
 
 ---
 
@@ -177,7 +199,7 @@ WebFetch(domain:w3c.github.io)
 - HTML 要素の暗黙ロール（ARIA in HTML § 5）を確認する
 - `role` 属性で明示的にロールを付与している場合、その要素に許可されたロールか確認する（ARIA in HTML § 5 の "Allowed ARIA roles" を参照）
 
-> **Claude へ（修正案でロールを提案する場合）**: `role` 属性の値として特定のロールを修正案に含める場合、必ず WAI-ARIA 1.2 の仕様を確認し、そのロールが **著者指定可能（non-abstract）** かどうかを検証すること。抽象ロール（abstract roles）は UA が内部的に使用するためのものであり、著者がコンテンツに指定してはならない（WAI-ARIA 1.2 § 5.3.1）。また、ロールのカテゴリ（document structure / widget / landmark など）がユースケースに合っているかも確認すること。例えば `role="grid"` は **widget role** であり、セル単位のキーボードナビゲーション（矢印キーによるフォーカス移動）を著者が実装することが前提となる。静的な表データに `role="grid"` を提案することは誤りであり、この場合は **document structure role** である `role="table"` が適切。
+> **Claude へ（修正案でロールを提案する場合）**: 提案するロールが **著者指定可能（non-abstract）** か WAI-ARIA 1.2 § 5.3.1 で確認すること（抽象ロールは著者が指定してはならない）。ロールのカテゴリ（document structure / widget / landmark）がユースケースに合っているかも確認する。例: `role="grid"` は widget role でキーボードナビゲーション実装が前提のため、静的な表データには document structure role の `role="table"` が適切。
 
 **必須 ARIA 属性の有無**
 
@@ -188,11 +210,13 @@ WebFetch(domain:w3c.github.io)
 - インタラクティブ要素・フォームコントロールに適切なアクセシブルネームが付いているか
 - `aria-label`, `aria-labelledby`, `<label>` の使い分けが適切か
 
-> **Claude へ（アイコンボタンの accessible name）**: `<button>` の中に `<svg role="img" aria-label="...">` を置くパターンは正当な実装である。AccName 1.1 の計算により、button の accessible name は SVG の `aria-label` 値として正しく算出される。「ボタンがアイコン画像を内包している」という実態をセマンティクス上も表現しており、`aria-label` を button に移して SVG に `aria-hidden` を付けることはむしろ実態を隠すことになる。このパターンを指摘する必要はない。
+> **Claude へ（aria-label 提案時の Label in Name 確認・必須）**: 修正案として `aria-label` の追加・変更を提案する場合、提案前に必ず WCAG 2.5.3 Label in Name（レベル A、目標レベル内であれば常に適用）への抵触を自己チェックすること。対象要素に可視テキスト（テキストコンテンツ）がある場合、提案する `aria-label` の値はその可視テキストを部分文字列として含んでいなければならない。可視テキストと無関係な文言（別の説明文・用途の言い換え等）で `aria-label` を上書きする修正案は、可視ラベルと accessible name を乖離させる新たな 2.5.3 違反を生むため提案してはならない。可視テキストだけでは伝わらない補足情報を加えたい場合は、`aria-label` での上書きではなく次を優先的に検討する: (a) 可視テキスト自体に情報を追加する、(b) `aria-describedby` で補足の説明用要素を関連付ける、(c) 可視テキストの前後に visually-hidden なテキストを追加して合成する（可視テキストは維持される）。
+>
+> **Claude へ（title属性はaccessible descriptionとして機能しうる）**: `title` 属性は accessible name の算出（Accessible Name and Description Computation 1.1 § 4.3.1）では最終フォールバックだが、要素にテキストコンテンツ等の他の名前算出源があり accessible name がそちらから決まる場合、多くの UA は `title` の値を accessible description として提供する（HTML-AAM）。したがって「`title` の文言が accessible name に採用されない」こと自体は仕様違反ではなく、description として意図通り機能している可能性がある。この状態のみを根拠に `aria-label` への昇格を提案しないこと。提案する場合は、上記の Label in Name チェックを経たうえで、可視テキストと accessible name の一致を崩さない代替手段（`aria-describedby` 等）を優先する。
 
-> **Claude へ（`<a>` without `href` と `aria-current`）**: パンくずリストや一貫したナビゲーションバーで、現在のページに対応するリンクを `<a>` without `href` で表すパターンは、WHATWG HTML Living Standard § 4.5.1 が明示している正当な実装である（仕様内のサンプルコードに示されている）。`<a>` without `href` の暗黙ロールは `generic` だが、`aria-current` はグローバル属性であり任意の要素に付与できる。したがって `<a aria-current="page">現在のページ</a>` は仕様的に問題なく、`<span aria-current="page">` への変更を指摘する必要はない。
+> **Claude へ（`<a>` without `href` と `aria-current`）**: パンくずリストや現在ページのリンクを `<a>` without `href` で表すのは WHATWG HTML Living Standard § 4.5.1 が明示する正当な実装。`aria-current` はグローバル属性のため任意要素に付与可能で、`<a aria-current="page">` に問題はない。`<span>` への変更を指摘する必要はない。
 
-> **Claude へ（同名ラベルの判断）**: 複数のフォームコントロールが同じ accessible name を持つ場合でも、AT が各コントロールのロール名を読み上げることで区別できるケースがある。例えば `input[type="color"]` は VoiceOver では「カラーウェル」、テキスト入力は「テキストフィールド」と読み上げられる。ロールで区別可能な場合に accessible name を重複させて冗長な説明を加えることは避けること。ただし `input[type="color"]` の ARIA in HTML 仕様上の暗黙ロールは "No corresponding role"（ブラウザ依存）であることを念頭に置き、一貫性が保証されない環境では追加の区別が有効な場合もある。
+> **Claude へ（同名ラベルの判断）**: 複数のフォームコントロールが同じ accessible name でも、AT がロール名（例: `input[type="color"]` は「カラーウェル」）で読み上げ区別できる場合は冗長な追加ラベルを指摘しない。ただし `input[type="color"]` の暗黙ロールは "No corresponding role"（ブラウザ依存）である点に留意する。
 
 **フォーカス管理**
 
@@ -220,31 +244,11 @@ WebFetch(domain:w3c.github.io)
 - テーブルのマークアップ（`scope`, `headers`, `caption` 等）が適切か
 - リストのマークアップが適切か（`ul`, `ol`, `dl` の使い分け）
 - `aria-hidden="true"` の使用が適切か（フォーカス可能な要素を隠していないか）
-- 装飾目的の空要素（`<span aria-hidden="true" />`、`<div>` など）が使われている場合、CSS 擬似要素（`::before` / `::after`）で代替できないか検討する
-
-    **例（修正前）:**
-
-    ```html
-    <button>
-        <span class="color-swatch" aria-hidden="true"></span>
-        <span>文字色: #ff0000</span>
-    </button>
-    ```
-
-    **例（修正後）:**
-
-    ```html
-    <!-- button::before で色見本を表示する -->
-    <button class="has-swatch">
-        <span>文字色: #ff0000</span>
-    </button>
-    ```
-
-    空の要素は DOM を増やし、スクリーンリーダーが誤って読み上げるリスクも生じる。擬似要素はアクセシビリティツリーに現れないため、装飾専用の要素を DOM に置く必要がなくなる。
+- 装飾目的の空要素（`<span class="color-swatch" aria-hidden="true"></span>` など）が使われている場合、CSS 擬似要素（`::before` / `::after`）で代替できないか検討する。擬似要素はアクセシビリティツリーに現れず、DOM も増えない。
 
 ---
 
-#### 4-5. コンポーネントライブラリ固有のチェック（対象コードがコンポーネントベースのフレームワークを使用している場合のみ）
+#### 4-4. コンポーネントライブラリ固有のチェック（対象コードがコンポーネントベースのフレームワークを使用している場合のみ）
 
 **HTML 仕様にない属性（カスタム props・カスタムディレクティブ等）の DOM 要素への受け渡し**
 
@@ -256,35 +260,9 @@ React, Vue, Svelte 等のコンポーネントライブラリでは、コンポ�
 
 **チェックすべき代表的なパターン:**
 
-*React/JSX:*
-```jsx
-// 危険: props にカスタム属性が含まれていると DOM に渡ってしまう
-function Button({ children, ...props }) {
-  return <button {...props}>{children}</button>;
-}
-
-// 危険: isActive は HTML 仕様にない属性
-function Item({ isActive, label }) {
-  return <li isActive={isActive}>{label}</li>;
-}
-```
-
-*Vue:*
-```vue
-<!-- 危険: $attrs が自動的にルート要素に継承され、カスタム props が DOM に出力される -->
-<template>
-  <div>...</div>
-</template>
-<script>
-export default { inheritAttrs: true /* デフォルト */ }
-</script>
-```
-
-*Svelte:*
-```svelte
-<!-- 危険: $$restProps にカスタムデータが含まれたまま DOM に渡る -->
-<div {...$$restProps}>...</div>
-```
+- React: `<button {...props}>` や `<li isActive={isActive}>` のように props をそのまま／個別に DOM 要素へ渡すスプレッド構文
+- Vue: `inheritAttrs`（デフォルト `true`）により `$attrs` がルート要素に自動継承される
+- Svelte: `<div {...$$restProps}>` のようにカスタムデータを含んだまま DOM に渡すスプレッド構文
 
 **問題のある属性かどうかの判断基準:**
 
@@ -302,25 +280,14 @@ export default { inheritAttrs: true /* デフォルト */ }
 
 **修正の方向性（参考として示す）:**
 
-```jsx
-// React: カスタム props を分離して DOM に渡さない
-function Button({ children, isLoading, variant, ...htmlProps }) {
-  return <button {...htmlProps}>{children}</button>;
-}
-```
+- React: `function Button({ children, isLoading, variant, ...htmlProps }) { return <button {...htmlProps}>{children}</button>; }` のようにカスタム props を分離してから渡す
+- Vue: `inheritAttrs: false` を指定し、`v-bind="filteredAttrs"` で必要な属性のみ明示的に渡す
 
-```vue
-<!-- Vue: inheritAttrs: false で自動継承を無効化し、必要な属性のみ明示的に渡す -->
-<template>
-  <div v-bind="filteredAttrs">...</div>
-</template>
-```
-
-> **Claude へ**: カスタム props の混入は、コードを静的に見ただけでは判断しきれない場合がある。`{...props}` や `{...$$restProps}` のスプレッドがあれば「混入リスクがある」として指摘し、props の内容次第で問題になりうることを説明すること。明らかにカスタム props が DOM 要素に直接渡されている場合は「重要度: 高」として指摘する。
+> **Claude へ**: カスタム props の混入は静的に見ただけでは判断しきれない場合がある。スプレッド構文があれば「混入リスクがある」として指摘し、明らかに DOM 要素へ直接渡されている場合は「優先度: 高」とする。
 
 ---
 
-#### 4-4. 既知のブラウザバグの確認
+#### 4-5. 既知のブラウザバグの確認
 
 レビュー対象に以下の要素・パターンが含まれる場合、該当する既知バグをレビュー結果の「既知のブラウザバグ情報」セクションに記載すること。仕様上は正しい実装であっても、特定のブラウザで問題が生じる場合があるため、参考情報として伝える。
 
@@ -328,7 +295,7 @@ function Button({ children, isLoading, variant, ...htmlProps }) {
 | --------------------- | ------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------ |
 | `input[type="color"]` | キーボードフォーカスが当たらない、またはフォーカスが即座に奪われる | Safari (WebKit) | [WebKit Bug #194756](https://bugs.webkit.org/show_bug.cgi?id=194756)（2019年報告・未解決） |
 
-> **Claude へ**: 上記バグに該当する要素がレビュー対象に含まれる場合、指摘事項ではなく「既知のブラウザバグ情報（参考）」セクションとして別枠で記載すること。コードの問題ではなくブラウザ側のバグであるため、重要度評価の対象外とする。
+> **Claude へ**: 上記バグに該当する要素がレビュー対象に含まれる場合、指摘事項ではなく「既知のブラウザバグ情報（参考）」セクションとして別枠で記載すること。コードの問題ではなくブラウザ側のバグであるため、優先度評価の対象外とする。
 
 ---
 
@@ -337,10 +304,11 @@ function Button({ children, isLoading, variant, ...htmlProps }) {
 以下のフォーマットで出力すること。
 
 > **Claude へ（ファイル参照のリンク形式）**: 問題箇所・修正案のコードブロックの直前に、対象ファイルの行番号へのリンクを必ず記載すること。形式は以下の通り（VSCode で直接開けるよう相対パスで記述する）:
+>
 > - 単一行: `[FileName.tsx:42](src/path/to/FileName.tsx#L42)`
 > - 範囲: `[FileName.tsx:42-51](src/path/to/FileName.tsx#L42-L51)`
 
-`````
+````
 ## マークアップレビュー結果
 
 ### 総評
@@ -348,7 +316,7 @@ function Button({ children, isLoading, variant, ...htmlProps }) {
 
 ### 指摘事項
 
-#### #1 [重要度: 高 / 中 / 低] 件名
+#### #1 [優先度: 高 / 中 / 低] 件名
 
 [FileName.html:42](path/to/FileName.html#L42)
 
@@ -371,9 +339,21 @@ function Button({ children, isLoading, variant, ...htmlProps }) {
 
 ---
 
-### 良い点
+### 確認事項
 
-（適切に実装されている箇所があれば挙げる）
+（仕様違反でも目標レベル内のWCAG違反でもないが、APGパターン等の一般的な期待挙動と異なり、意図的な設計判断である可能性がある場合のみ記載。修正案は付けず、意図的かどうかを問う形にとどめる）
+
+#### #1 件名
+
+[FileName.html:42](path/to/FileName.html#L42)
+
+**該当コード:**
+```html
+（該当箇所）
+```
+
+**確認したいこと:**
+（一般的な期待挙動・APGパターン等と異なる点と、意図的な設計判断の可能性を簡潔に）
 
 ### 既知のブラウザバグ情報（参考）
 
@@ -386,19 +366,26 @@ function Button({ children, isLoading, variant, ...htmlProps }) {
 ### 参照仕様
 
 （今回のレビューで参照した仕様の URL 一覧）
-`````
 
-重要度の定義:
+### 良い点
+
+（適切に実装されている箇所があれば挙げる）
+````
+
+優先度の定義:
+
 - **高**: 仕様違反、またはアクセシビリティを著しく損なう問題（目標 WCAG レベル内の達成基準違反を含む）
 - **中**: 仕様上は違反ではないが、より適切な実装がある
 - **低**: スタイルやベストプラクティスの観点での提案
 
-目標レベルを超える WCAG 達成基準（例: 目標 AA なのに AAA の基準）への言及は重要度によらず「参考情報」セクションにまとめ、指摘事項には含めないこと。
+目標レベルを超える WCAG 達成基準（例: 目標 AA なのに AAA の基準）への言及は優先度によらず「参考情報」セクションにまとめ、指摘事項には含めないこと。
+
+> **Claude へ（優先度: 中 の適用条件・必須）**: 「仕様上は違反ではないが、より適切な実装がある」と判定する前に、まず対象が (1) 参照仕様（WHATWG HTML / WAI-ARIA / ARIA in HTML）に違反しておらず、(2) 目標レベル内の WCAG 達成基準にも違反していないことを確認する。その両方が成立する場合、それでもなお「より適切な実装がある」と客観的に言えるか（根拠となる仕様の推奨事項・既知の相互運用性問題等が明示できるか）を確認すること。APG パターン等の一般的な期待挙動と単に異なる、というだけでは優先度付きの指摘事項として扱う根拠にならない——多くの場合それは意図的な設計判断であり得る。仕様違反でも WCAG 違反でもなく、客観的な優劣も示せない挙動差異は、優先度付きの「指摘事項」として修正案を提案するのではなく、「確認事項」セクションで意図的な実装かどうかを問うだけにとどめること。
 
 ---
 
 ## 注意事項
 
-- 仕様の解釈を独自に行わず、必ずフェッチした仕様の記述を根拠とすること
+- 仕様の解釈を独自に行わず、必ず参照した仕様の記述を根拠とすること
 - 曖昧な場合は「仕様上は明記されていないが…」と前置きすること
 - プロジェクト固有ルールがある場合、それと仕様要件が矛盾する場合は両方を明示し、ユーザーに判断を委ねること

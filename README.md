@@ -1,7 +1,7 @@
 ---
-トークン使用量推定値: 11934
+トークン使用量推定値: 12914
 計測方法: "Anthropic Messages API count_tokens (claude-sonnet-5)"
-SKILL.md行数: 415
+SKILL.md行数: 432
 ---
 
 # review-markup
@@ -29,7 +29,7 @@ Claude Code のチャットで `/review-markup` を実行するか、HTML のレ
 
 ### 仕様ソースのローカル clone
 
-このスキルは WAI-ARIA・ARIA in HTML・WCAG（Understanding Docs）・APG Patterns・MDN Web Docs（英語原文）を、スキル自身のディレクトリ直下の `sources/` に `git clone --depth 1` し、`grep`/`Read` で参照します（初回実行時に自動で clone、以降は `pull` で更新）。WCAG・APG Patterns は必要なディレクトリ（`understanding/`、`content/patterns/`）のみを `sparse-checkout` の部分cloneで取得し容量を抑えています（MDN は `mdn/content` リポジトリ自体が元々英語版のみのため sparse化の対象外）。WHATWG HTML Living Standard は本家がビルド前提として公開している単一ソースファイル（`source`）を `curl` で直接取得し、同様に `grep`/`Read` で参照します（ファイルが存在する限り再取得しません）。合計サイズは概ね 236MB（内訳: WAI-ARIA 約6MB、ARIA in HTML 約1MB、WCAG 約11MB、APG Patterns 約9.2MB、MDN 約201MB、WHATWG HTML 約8MB）。`sources/` は `.gitignore` 済みで、このリポジトリのコミット対象には含まれません。
+このスキルは WAI-ARIA（Accessible Name and Description Computation を含む）・ARIA in HTML・WCAG（Understanding Docs）・APG Patterns・ACT Rules・MDN Web Docs（英語原文）を、スキル自身のディレクトリ直下の `sources/` に `git clone --depth 1` し、`grep`/`Read` で参照します（初回実行時に自動で clone、以降は `pull` で更新）。WCAG・APG Patterns・ACT Rules は必要なディレクトリ（`understanding/`、`content/patterns/`、`content/rules/`）のみを `sparse-checkout` の部分cloneで取得し容量を抑えています（MDN は `mdn/content` リポジトリ自体が元々英語版のみのため sparse化の対象外）。WHATWG HTML Living Standard は本家がビルド前提として公開している単一ソースファイル（`source`）を `curl` で直接取得し、同様に `grep`/`Read` で参照します（ファイルが存在する限り再取得しません）。合計サイズは概ね 242MB（内訳: WAI-ARIA 約6MB、ARIA in HTML 約1MB、WCAG 約11MB、APG Patterns 約9.2MB、ACT Rules 約5.8MB、MDN 約201MB、WHATWG HTML 約8MB）。`sources/` は `.gitignore` 済みで、このリポジトリのコミット対象には含まれません。
 
 WHATWG HTML Living Standard の `source` ファイルはビルド前の中間形式（Developer Edition用の条件分岐タグ等を含む）で、規範文はプレーンに読めますが `html.spec.whatwg.org` の最終的なアンカーID（例: `#the-p-element`）はビルド時に自動生成されるため含まれません。そのため、レビュー結果に引用URLを記載する際はアンカーID確認のため該当ページを都度フェッチします。
 

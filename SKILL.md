@@ -13,9 +13,9 @@ HTML のセマンティクスとアクセシビリティのスペシャリスト
 
 このスキルは仕様の参照を、原則としてローカルにcloneした一次情報源への `grep`/`Read` で行う。フェッチは、cloneに含まれない情報（策定中のissue、最新のerrata等）が必要な場合のみ補助的に使う。
 
-このスキル自身のディレクトリ（`SKILL.md` と同じ場所）直下に `sources/` を作り、以下をcloneする（初回のみ。合計で概ね236MB程度になる。以降は `pull` で更新する）。
+このスキル自身のディレクトリ（`SKILL.md` と同じ場所）直下に `sources/` を作り、以下をcloneする（初回のみ。合計で概ね242MB程度になる。以降は `pull` で更新する）。
 
-`wcag`・`aria-practices` は必要なディレクトリ（`understanding/`、`content/patterns/`）のみを `git sparse-checkout`（`--filter=blob:none` の部分clone）で取得する。これにより `wcag` は約50MB→約11MB、`aria-practices` は約14MB→約9.2MBに削減できる（実測比較済み）。`mdn-content` は `mdn/content` リポジトリ自体が元々英語版（`files/en-us/**`）のみで多言語版は別リポジトリ（`mdn/translated-content`）のため、sparse化しても削減効果がなく対象外とする。`aria`・`html-aria` は単一HTMLファイルで十分小さいため通常clone。
+`wcag`・`aria-practices`・`wcag-act-rules` は必要なディレクトリ（`understanding/`、`content/patterns/`、`content/rules/`）のみを `git sparse-checkout`（`--filter=blob:none` の部分clone、cone mode）で取得する。これにより `wcag` は約50MB→約11MB、`aria-practices` は約14MB→約9.2MB、`wcag-act-rules` は約216MB→約5.8MBに削減できる（実測比較済み）。`wcag-act-rules` はcone modeの仕様上、指定ディレクトリに加えてリポジトリ直下のファイル（`wcag-mapping.json` などWCAG達成基準⇔ルールIDの対応表を含む）も自動的に含まれる。`mdn-content` は `mdn/content` リポジトリ自体が元々英語版（`files/en-us/**`）のみで多言語版は別リポジトリ（`mdn/translated-content`）のため、sparse化しても削減効果がなく対象外とする。`aria`・`html-aria` は単一HTMLファイルで十分小さいため通常clone。
 
 ```bash
 cd "$(dirname "<このSKILL.mdの絶対パス>")"
@@ -25,6 +25,7 @@ for repo in \
   "html-aria|https://github.com/w3c/html-aria.git|" \
   "wcag|https://github.com/w3c/wcag.git|understanding" \
   "aria-practices|https://github.com/w3c/aria-practices.git|content/patterns" \
+  "wcag-act-rules|https://github.com/w3c/wcag-act-rules.git|content/rules" \
   "mdn-content|https://github.com/mdn/content.git|"; do
   name="${repo%%|*}"; rest="${repo#*|}"; url="${rest%%|*}"; sparse="${rest#*|}"
   if [ -d "sources/$name/.git" ]; then
@@ -44,12 +45,15 @@ done
 
 - 各ソースの中身:
     - `sources/aria/index.html` — WAI-ARIA
+    - `sources/aria/accname/index.html` — Accessible Name and Description Computation（AccName）。`w3c/aria` のフルcloneに同梱されているため、これ単体のための追加cloneは不要
     - `sources/html-aria/index.html` — ARIA in HTML
     - `sources/wcag/understanding/**` — WCAG 達成基準の解説（Understanding Docs）
     - `sources/aria-practices/content/patterns/**` — APG Patterns
+    - `sources/wcag-act-rules/content/rules/<rule-id>/**` — ACT Rules（WCAG適合性の機械テスト可能なルール集。承認済みルールは `index.md`、レビュー未了のドラフトは `proposed.md` のみ）
+    - `sources/wcag-act-rules/wcag-mapping.json` — WCAG達成基準⇔ACT RulesルールIDの対応表
     - `sources/mdn-content/files/en-us/**` — MDN Web Docs（英語原文、翻訳版ではない）
     - `sources/whatwg-html/source` — WHATWG HTML Living Standard（ビルド前の単一ソースファイル。約8MB。`curl` で直接取得するため `.git` はない）
-- W3C系4リポジトリとMDNはReSpec/Eleventy等のビルドを経る前のソースだが、規範文・解説文はファイル中にそのまま記述されているため、ビルドせず `grep`/`Read` で読める。
+- W3C系5リポジトリとMDNはReSpec/Eleventy等のビルドを経る前のソースだが、規範文・解説文はファイル中にそのまま記述されているため、ビルドせず `grep`/`Read` で読める。
 - `whatwg-html/source` も同様に規範文はプレーンに読めるが、これは本家が「HTMLではなく独自の中間言語」と明言している前処理前ファイルであり、`w-dev`/`w-nodev`（Developer Edition用の分岐）等の条件付き属性が混在する点、および `html.spec.whatwg.org` で使われる最終的なアンカーID（例: `#the-p-element`）はビルド時に自動生成されるため本ファイル中には存在しない点に注意する。内容の検索・引用にはgrepを使い、レポートに書くURL（アンカー付き）は該当箇所を都度フェッチして確認する（ステップ3参照）。
 
 > **Claude へ**: `sources/` が存在しない、または各サブディレクトリに `.git` がない場合はcloneから開始すること。既に存在する場合も、レビュー開始前に一度 `pull --ff-only` して最新化すること（`whatwg-html/source` はファイルが存在する限り再取得不要。存在しない場合のみ `curl` で取得する）。
@@ -128,6 +132,12 @@ done
     - `grep` 対象: `sources/html-aria/index.html`
     - フォールバック: https://www.w3.org/TR/html-aria/
 
+#### Accessible Name and Description Computation (accname)
+
+- アクセシブルネーム／アクセシブルディスクリプションの算出結果が妥当か（`aria-labelledby`/`aria-label`/`alt`/`title`/`placeholder` 等の優先順位、装飾目的の空文字許容など）
+    - `grep` 対象: `sources/aria/accname/index.html`（`w3c/aria` リポジトリに同梱。追加のcloneは不要）
+    - フォールバック: https://www.w3.org/TR/accname-1.2/
+
 #### APG Patterns (ARIA Authoring Practices Guide)
 
 - UI パターン（モーダル、タブ、メニューなど）のキーボード操作・ARIA 使用の確認
@@ -139,6 +149,13 @@ done
 - 個別の達成基準の意図・適合方法・失敗例の確認
     - `grep` 対象: `sources/wcag/understanding/<version>/<criterion-slug>.html`（例: `sources/wcag/understanding/22/target-size-minimum.html`）
     - フォールバック: https://www.w3.org/WAI/WCAG22/Understanding/
+
+#### ACT Rules（Accessibility Conformance Testing）
+
+- WCAG達成基準に対する機械テスト可能な合否条件（Applicability / Expectation）に照らした確認。Understanding Docsが「意図・適合方法」の解説であるのに対し、ACT Rulesはより具体的・アトミックな合否判定基準を与える
+    - `grep` 対象: まず `sources/wcag-act-rules/wcag-mapping.json` を該当WCAG達成基準（数値表記 `2.4.1` またはスラッグ `bypass-blocks`）で検索し、該当する `id`（例: `047fe0`）を特定する。次に `sources/wcag-act-rules/content/rules/<id>/index.md`（無ければ `proposed.md`）の `## Applicability` / `## Expectations` を読む
+    - `proposed.md` のみのルールはW3C Accessibility Guidelines Working Groupのレビューを経ていないCommunity Groupドラフトのため、指摘の根拠に使う場合はその旨を明記する
+    - フォールバック: https://www.w3.org/WAI/standards-guidelines/act/rules/
 
 #### MDN Web Docs（英語原文。参考情報として扱う）
 

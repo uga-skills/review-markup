@@ -1,6 +1,6 @@
 ---
 name: review-markup
-description: HTML のセマンティクスとアクセシビリティを、WHATWG HTML Living Standard・WAI-ARIA・ARIA in HTML・APG Patterns に照らしてレビューする。ユーザーが「このHTMLレビューして」「マークアップ直して」「アクセシビリティ的に問題ないか見て」など、HTML構造やa11yの妥当性を確認したい場合は必ずこのスキルを使う。
+description: HTML のセマンティクスとアクセシビリティを、WHATWG HTML Living Standard・WAI-ARIA・ARIA in HTML・APG Patterns などに照らしてレビューする。ユーザーが「このHTMLレビューして」「マークアップ直して」「アクセシビリティ的に問題ないか見て」など、HTML構造やa11yの妥当性を確認したい場合は必ずこのスキルを使う。
 ---
 
 # Skill: review-markup

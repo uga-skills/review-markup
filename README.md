@@ -1,7 +1,7 @@
 ---
-トークン使用量推定値: 12915
+トークン使用量推定値: 13774
 計測方法: "Anthropic Messages API count_tokens (claude-sonnet-5)"
-SKILL.md行数: 432
+SKILL.md行数: 444
 ---
 
 # review-markup
